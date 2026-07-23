@@ -50,10 +50,9 @@ def resize_mask(mask: Image.Image, size: int = DEFAULT_SIZE) -> Image.Image:
 
 
 def load_image(path: Path, size: int = DEFAULT_SIZE) -> np.ndarray:
-    """Load a colour photo from disk, resize it, return it as numbers.
+    """Load a colour photo from disk, resize it, return it as numbers (0.0-1.0).
 
-    WHERE IT FITS: this is what the Dataset class will call for the .jpg.
-    Returns a grid of shape (size, size, 3) - the 3 is red/green/blue.
+  
     """
     with Image.open(path) as img:
         # .convert("RGB") forces 3 colour channels.
@@ -61,8 +60,15 @@ def load_image(path: Path, size: int = DEFAULT_SIZE) -> np.ndarray:
         # would give the model the wrong number of channels. this normalises it.
         img = img.convert("RGB")
         img = resize_image(img, size)
-        # np.array turns the picture into a grid of numbers we can do maths on
-        return np.array(img)
+        # NORMALISATION - the team's shared standard.
+        # THE PROBLEM: raw pixels are 0-255. Those numbers are too big for a
+        # model to learn from comfortably.
+        # WHY IT MATTERS: everyone must use the SAME normalisation or our
+        # results aren't comparable. This is that one agreed place.
+        # WHAT WE DO: divide by 255 so every pixel lands between 0.0 and 1.0.
+        # .astype(np.float32) makes them decimals - models expect decimals.
+
+        return np.array(img).astype(np.float32) / 255.0 
 
 
 def load_mask(path: Path, size: int = DEFAULT_SIZE) -> np.ndarray:

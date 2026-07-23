@@ -1,0 +1,39 @@
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+
+# ---- Dataset: NEVER commit medical images ----
+# the dataset lives OUTSIDE this repo. these lines are a safety net
+# in case anyone copies it in by accident.
+data/raw/
+data/processed/
+data/cache/
+project_data/
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+
+# but DO keep our small shared CSVs and folder placeholders
+!data/splits.csv
+!data/attribute_frequency.csv
+!**/.gitkeep
+
+# ---- Model checkpoints (too big for GitHub) ----
+*.pt
+*.pth
+*.ckpt
+*.h5
+
+# ---- OS / editor junk ----
+.DS_Store
+Thumbs.db
+*.swp

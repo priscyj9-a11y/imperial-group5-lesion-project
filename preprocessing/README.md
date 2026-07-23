@@ -2,29 +2,36 @@
 
 Owner: Faisal — branch `faisal-data-preprocessing`
 
-This folder handles dataset checking and preparation for Task 1 (lesion
-segmentation) and Task 2 (attribute detection).
-
-> **What this folder is for:** before anyone trains a model, someone has to
-> confirm the data is actually correct and organised. That's what lives here.
-> If this part is wrong, every model trained afterwards is wrong too, and it
-> usually isn't obvious until days later.
+Everything here prepares the dataset so all five of us work from the same
+foundation. If you're starting a task, read this first.
 
 ---
 
-## Dataset location
+## Quick start
 
-The dataset is **not** in this repository and must never be committed to it.
-Keep it in a separate folder on your own machine. All scripts take the path
-as a command-line argument so nobody's personal path is hardcoded.
+```powershell
+# 1. make the shared environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 
-> **Why:** the dataset is thousands of medical images. Pushing it to GitHub
-> would blow past size limits and is bad practice for patient imaging.
-> Keeping it outside the repo means Git literally cannot see it, so nobody
-> can commit it by accident. And passing the path as an argument means the
-> scripts work on everyone's machine, not just mine.
+# 2. load data in your code
+from preprocessing.transforms import load_image, load_mask
+```
 
-Expected structure:
+The dataset is NOT in this repo. Keep it separately on your own machine.
+
+---
+
+## The three rules
+
+1. **Use `data/splits.csv`.** Don't make your own split. Never train on `val`.
+2. **Import from `transforms.py`.** Don't write your own loading or resizing.
+3. **Never commit anything from `project_data/`.**
+
+---
+
+## Dataset layout
 
 ```
 project_data/
@@ -34,114 +41,131 @@ project_data/
     └── task2_gt/   13500 files   000001_attribute_globules.png
 ```
 
-> `images` are the photos the model looks at. `task1_gt` and `task2_gt` are
-> the answer sheets we compare its guesses against. "gt" = ground truth.
-> Photos are `.jpg`, masks are `.png` — masks must stay lossless or the
-> lesion boundary gets blurred and our answer sheets become slightly wrong.
-
----
-
-## Naming convention
-
 Every file starts with the same 6-digit image ID. Split the filename at the
 first underscore to get it.
 
-| Folder | Example | ID |
-|---|---|---|
-| `images` | `000001.jpg` | `000001` |
-| `task1_gt` | `000001_segmentation.png` | `000001` |
-| `task2_gt` | `000001_attribute_streaks.png` | `000001` |
+The five attributes, spelled as they appear in filenames:
+`pigment_network`, `negative_network`, `streaks`, `milia_like_cyst`, `globules`
 
-> **Why this matters:** the ID is the only thing linking a photo to its
-> answer sheets. Everything downstream — pairing, splitting, evaluation —
-> depends on extracting it the same way every time.
+> **Careful:** files use `milia_like_cyst` (singular), the briefing's JSON
+> schema uses `milia_like_cysts` (plural). Task 3 needs to map between them.
 
-The five attributes, spelled as they appear in the filenames:
+---
 
-- `pigment_network`
-- `negative_network`
-- `streaks`
-- `milia_like_cyst`
-- `globules`
+## How to load data
 
-**Careful:** the files use `milia_like_cyst` (singular) but the project
-briefing's JSON schema uses `milia_like_cysts` (plural). Whoever builds the
-report output in Task 3 needs to know this.
+```python
+from pathlib import Path
+from preprocessing.transforms import load_image, load_mask
 
-> A one-letter mismatch like this won't crash anything. It'll just quietly
-> produce a report that fails the schema check on submission day.
+image = load_image(Path("path/to/000001.jpg"))
+# -> 512x512x3, float32, values 0.0 to 1.0
+
+mask = load_mask(Path("path/to/000001_segmentation.png"))
+# -> 512x512, values 0 or 1
+```
+
+**Images** are resized with bilinear (smooth blending — right for photos) and
+divided by 255 so values land between 0.0 and 1.0.
+
+**Masks** are resized with nearest-neighbour (no blending) and returned as 0/1.
+
+> **Why masks are different:** bilinear would average a 0 and a 255 into greys
+> like 127, so "is this pixel lesion or not?" has no clean answer and our ground
+> truth is silently corrupted. Every Dice/IoU score after that would be wrong.
+> Masks are labels, not pictures — they are never normalised.
+
+---
+
+## The split — `data/splits.csv`
+
+| | |
+|---|---|
+| train | 2160 images (80%) |
+| val | 540 images (20%) |
+| seed | 42 — **do not change** |
+
+Two columns: `image_id`, `split`. Filter by the `split` column.
+
+> **Why it's shared:** if we each pick our own validation set, our scores aren't
+> comparable — one person might just get easier images.
+>
+> **Why split by image ID:** each ID owns 1 photo + 6 masks. Splitting by ID
+> keeps a case whole. If the same lesion landed in both train and val, the model
+> would have already seen the answer — that's data leakage, and validation
+> becomes meaningless.
+
+---
+
+## Attribute frequencies — `data/attribute_frequency.csv`
+
+Checked all five attributes across all 2700 images.
+
+| attribute | present | absent | % present |
+|---|---|---|---|
+| pigment_network | 1651 | 1049 | 61.1% |
+| negative_network | 201 | 2499 | 7.4% |
+| streaks | 142 | 2558 | 5.3% |
+| milia_like_cyst | 574 | 2126 | 21.3% |
+| globules | 610 | 2090 | 22.6% |
+
+> **No mask files are missing** — every image has all five. When an attribute
+> isn't in the photo, its mask is simply all black. Absent ≠ broken file.
+>
+> **Class imbalance warning for Task 2:** streaks appear in only 5.3% of images.
+> A model that always predicts "absent" scores 94.7% accuracy while learning
+> nothing. Accuracy is a useless metric here — use per-attribute Dice, and
+> expect to need weighted loss or tuned thresholds for streaks and negative
+> network.
+
+---
+
+## Augmentation warning
+
+If you flip, rotate, or crop an image, you **must** apply the identical
+transform to its mask. Flip one without the other and the ground truth points
+at the wrong pixels — training breaks silently and you won't notice until your
+scores are bad.
+
+Never apply random augmentation to `val` data.
 
 ---
 
 ## Scripts
 
-### `inspect_dataset.py`
-
-Read-only check that every image has its matching masks. Modifies nothing.
-
-> **What it does, in plain terms:** reads all the filenames, pulls the ID off
-> the front of each one, and checks that photo `000001` has a lesion mask
-> `000001` and five attribute masks `000001`. Then reports anything that
-> doesn't line up. It never opens, edits, moves or deletes a file.
-
-Run it:
+| Script | What it does |
+|---|---|
+| `inspect_dataset.py` | Read-only check that every image has its masks. Modifies nothing. |
+| `transforms.py` | Loading, resizing, normalisation. Import from this. |
+| `create_splits.py` | Generates `data/splits.csv`. Already run — don't re-run unless needed. |
+| `attribute_stats.py` | Generates `data/attribute_frequency.csv`. Already run. |
 
 ```powershell
 python preprocessing\inspect_dataset.py --data-root "<YOUR_PATH>\project_data\train"
+python preprocessing\transforms.py --data-root "<YOUR_PATH>\project_data\train" --n 50
 ```
 
-Expected output — every mismatch count should be `0`:
+---
 
-```
-  raw images     : 2700
-  lesion masks   : 2700
-  attribute masks: 13500
+## Known issue — speed
 
-Unique IDs: images=2700, lesion masks=2700
-  images with no lesion mask: 0
-  lesion masks with no image: 0
+A full pass over 2700 images takes ~7 minutes, because our originals are up to
+30 megapixels and decoding them is slow (the resizing itself is fast). This
+repeats every training epoch.
 
-IDs without exactly 5 attribute masks: 0
-IDs in images but absent from task2_gt: 0
-```
-
-> **Why this check exists:** the totals matching (2700 / 2700 / 13500) does
-> not prove the *same* IDs are in each folder. One missing image plus one
-> duplicate elsewhere gives identical totals while hiding a broken pair. This
-> script compares the actual ID sets, so a photo paired with the wrong answer
-> sheet can't silently reach training.
+**Fix:** a pre-resized cache — save 512×512 copies to disk once, load those
+instead. Keeps full 512 quality. Not built yet; will add before training scales
+up. Flag it if it's slowing you down.
 
 ---
 
 ## Status
 
-- [x] Dataset structure inspected — passed, no missing or duplicate IDs
-- [ ] Inspect mask pixel values (are masks really binary?)
-- [ ] Check whether absent attributes are blank masks or missing files
-- [ ] Build dataset manifest (CSV)
-- [ ] Create train/val splits with a fixed seed
-
-> **What's left, briefly:** we've confirmed the *files* are correct. We have
-> not yet looked *inside* them. Next we open a few masks and check the pixel
-> values are actually just black and white, and work out how an absent
-> attribute is stored — all-black mask, or something else.
-
----
-
-## Notes for the team
-
-- There is no `val` or `test` folder. We create the validation split ourselves
-  from `train`. The real test set is released 30 July.
-- Split by **image ID**, never by file, or the same lesion ends up in both
-  train and validation and our scores become meaningless.
-
-  > This woudl be data leakage. If the model sees an image during training
-  > and again during validation, our validation score measures memorisation,
-  > not skill — and it'll look great right up until the real test set lands.
-
-
-
-
-##  note to Faisal ( Self ): Resizing is the main issue to solve at the moment, Build an algorithm in the preprocessing file to solve this issue. 
-
-- Never commit anything from `project_data/`.
+- [x] Dataset inspected — 2700 clean cases, no missing or duplicate IDs
+- [x] Masks confirmed binary
+- [x] Resize + normalisation, verified across all 2700
+- [x] Fixed train/val split
+- [x] Attribute frequency table
+- [ ] Pre-resized cache (speed)
+- [ ] Integration pipeline
+- [ ] Submission checker
