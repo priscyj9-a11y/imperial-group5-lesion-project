@@ -1,0 +1,36 @@
+{
+  "image_id": "ISIC_000001",
+  "split": "validation",
+  "model_version": "task2_mock_model",
+  "attributes_order": [
+    "pigment_network",
+    "negative_network",
+    "streaks",
+    "milia_like_cysts",
+    "globules"
+  ],
+  "outputs": {
+    "presence": {
+      "pigment_network": {
+        "prob": 0.81,
+        "status": "present"
+      },
+      "negative_network": {
+        "prob": 0.12,
+        "status": "absent"
+      },
+      "streaks": {
+        "prob": 0.51,
+        "status": "uncertain"
+      },
+      "milia_like_cysts": {
+        "prob": 0.08,
+        "status": "absent"
+      },
+      "globules": {
+        "prob": 0.72,
+        "status": "present"
+      }
+    }
+  }
+}
