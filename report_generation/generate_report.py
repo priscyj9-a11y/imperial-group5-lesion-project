@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from config import ATTRIBUTES, DISPLAY_NAMES
+from config import ATTRIBUTES, ATTRIBUTE_VERBS, DISPLAY_NAMES
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -26,7 +26,8 @@ def generate_findings_report(
         status = presence[attribute]["status"]
         display_name = DISPLAY_NAMES[attribute]
 
-        findings.append(f"{display_name} is {status}")
+        verb = ATTRIBUTE_VERBS[attribute]
+        findings.append(f"{display_name} {verb} {status}")
 
     attribute_text = "; ".join(findings)
 
