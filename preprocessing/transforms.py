@@ -13,6 +13,64 @@ import numpy as np
 # 512 is the standard for this ISIC dataset - big enough to keep the small
 # structures (globules, milia-like cysts), small enough to train in 2 weeks.
 # debug at 256 if things are slow, try 768 later if we have time to spare.
+
+
+# ============================================================================
+# OPTIONAL: HAIR REMOVAL (DullRazor)  -- referenced on slide 34
+# ============================================================================
+# NOT part of the default pipeline. Commented out on purpose so it doesn't
+# silently change the images everyone trains on.
+#
+# THE PROBLEM: some dermoscopy photos have body hair over the lesion. The dark
+# strands add fake edges that can confuse the segmentation model.
+# WHAT IT DOES: finds the thin dark hair lines, then paints over them using the
+# surrounding skin colour (this is called "inpainting").
+# HOW TO DECIDE IF WE NEED IT: train a baseline WITHOUT it first, look at where
+# the model fails. If it's clearly tripping on hairy images, turn this on and
+# measure whether the Dice score actually improves. Don't add it blind.
+#
+# RULES IF YOU TURN IT ON:
+#   - Apply to the PHOTO only, never the mask (the mask has no hair).
+#   - Apply to BOTH train and test, or the model sees something it never
+#     learned during training.
+#
+# TO USE IT: pip install opencv-python, then uncomment and call remove_hair()
+# inside load_image() BEFORE resizing.
+#
+# import cv2
+#
+# def remove_hair(image: np.ndarray) -> np.ndarray:
+#     """Remove hair strands from a dermoscopy photo (DullRazor method).
+#
+#     Input:  an RGB image as a numpy array (values 0-255, before normalising).
+#     Output: the same image with hair painted over.
+#     """
+#     # STEP 1: convert to greyscale. hair shows up as dark lines regardless of
+#     # colour, so we only need brightness to find it.
+#     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+#
+#     # STEP 2: build a "kernel" - a small shape the filter slides over the image.
+#     # (17, 17) is a square sized to match typical hair thickness. bigger catches
+#     # thicker hair but risks grabbing real structures.
+#     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (17, 17))
+#
+#     # STEP 3: blackhat morphology. this highlights thin DARK features (hair)
+#     # sitting on a lighter background (skin), and ignores the big smooth areas.
+#     blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
+#
+#     # STEP 4: threshold. turn the highlighted hair into a clean black/white
+#     # mask: white = "this is hair", black = "leave alone". 10 is the cutoff
+#     # brightness; tune it if it misses hair or grabs too much.
+#     _, hair_mask = cv2.threshold(blackhat, 10, 255, cv2.THRESH_BINARY)
+#
+#     # STEP 5: inpaint. paint over every white (hair) pixel using the colours
+#     # around it. cv2.INPAINT_TELEA is a standard fill method. the "1" is how
+#     # far around each pixel it looks for colour to copy.
+#     clean = cv2.inpaint(image, hair_mask, 1, cv2.INPAINT_TELEA)
+#
+#     return clean
+# ============================================================================
+
 DEFAULT_SIZE = 512
 
 
