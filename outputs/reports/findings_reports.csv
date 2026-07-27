@@ -1,0 +1,2 @@
+image_id,split,model_version,findings_report,pigment_network_probability,pigment_network_status,negative_network_probability,negative_network_status,streaks_probability,streaks_status,milia_like_cysts_probability,milia_like_cysts_status,globules_probability,globules_status
+ISIC_000001,validation,task2_mock_model,The lesion is moderate in size with irregular borders. Pigment network is present; negative network is absent; streaks are uncertain; milia-like cysts are absent; globules are present.,0.81,present,0.12,absent,0.51,uncertain,0.08,absent,0.72,present
