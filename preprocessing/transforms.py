@@ -168,7 +168,13 @@ if __name__ == "__main__":
 
     # grab the first n image files so we test a real spread, not just one.
     # sorted() so we get the same sample every run.
-    image_paths = sorted((args.data_root / "images").glob("*.jpg"))[:args.n]
+    
+    # match both .jpg (original dataset) and .png (the resized cache), so this
+    # same test works whether we point it at the originals or the cache
+    image_paths = sorted(
+        list((args.data_root / "images").glob("*.jpg"))
+        + list((args.data_root / "images").glob("*.png"))
+    )[:args.n]
 
     bad_shapes = []      # anything that didn't come out size x size
     bad_values = []      # any mask that isn't purely 0s and 1s
