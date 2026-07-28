@@ -150,6 +150,50 @@ def load_mask(path: Path, size: int = DEFAULT_SIZE) -> np.ndarray:
     # does contain a stray grey, this still forces a clean yes/no answer.
     return (array > 127).astype(np.uint8)
 
+# ============================================================================
+# CACHE LOADERS - for images/masks that build_cache.py already resized to 512
+# ============================================================================
+# THE PROBLEM: load_image() and load_mask() resize every time they're called.
+# For CACHED files that are already 512x512, that resize is wasted work.
+# But we can't remove resizing from load_image() - it's still needed for the
+# ORIGINAL dataset (images up to 6688px that MUST be resized).
+# THE FIX: these separate loaders skip resizing and ONLY open + normalise.
+# Use these when loading from the cache. Use load_image/load_mask for originals.
+# ============================================================================
+
+
+def load_cached_image(path: Path) -> np.ndarray:
+    """Load an ALREADY-RESIZED cached photo. No resizing - just normalise.
+
+    Input:  path to a cached image (already 512x512).
+    Output: (H, W, 3) float32 array, values 0.0 to 1.0 - identical format to
+            what load_image() returns, just without the redundant resize.
+    """
+    with Image.open(path) as img:
+        # force 3 colour channels, same as the original loader
+        img = img.convert("RGB")
+        # NO resize call here - the cached file is already the right size
+        # divide by 255 so pixels land in 0.0-1.0, cast to float32 (decimals)
+        return np.array(img).astype(np.float32) / 255.0
+
+
+def load_cached_mask(path: Path) -> np.ndarray:
+    """Load an ALREADY-RESIZED cached mask. No resizing - just to 0/1.
+
+    Input:  path to a cached mask (already 512x512).
+    Output: (H, W) uint8 array of 0s and 1s - same format as load_mask().
+    """
+    with Image.open(path) as mask:
+        # single greyscale channel, same as the original loader
+        mask = mask.convert("L")
+        # NO resize call - cached mask is already the right size
+        array = np.array(mask)
+    # ">127" forces a clean yes/no even if a stray grey slipped in.
+    # True->1, False->0 via astype. keeps masks binary, never normalised.
+    return (array > 127).astype(np.uint8)
+
+
+
 
 # ---------------------------------------------------------------
 # self-test: run this file directly to check the transforms on MANY images.
@@ -168,7 +212,7 @@ if __name__ == "__main__":
 
     # grab the first n image files so we test a real spread, not just one.
     # sorted() so we get the same sample every run.
-    
+
     # match both .jpg (original dataset) and .png (the resized cache), so this
     # same test works whether we point it at the originals or the cache
     image_paths = sorted(
