@@ -1,7 +1,7 @@
 """Shared configuration for Task 3 report generation."""
 
 
-# Canonical names used in Task 3 JSON and CSV outputs
+# Canonical names used in Task 3 JSON and CSV outputs.
 ATTRIBUTES = [
     "pigment_network",
     "negative_network",
@@ -11,7 +11,7 @@ ATTRIBUTES = [
 ]
 
 
-# Names used in the written report
+# Names used in the written findings report.
 DISPLAY_NAMES = {
     "pigment_network": "Pigment network",
     "negative_network": "negative network",
@@ -21,7 +21,7 @@ DISPLAY_NAMES = {
 }
 
 
-# Grammar used in the written report
+# Grammar used in the generated report.
 ATTRIBUTE_VERBS = {
     "pigment_network": "is",
     "negative_network": "is",
@@ -31,7 +31,7 @@ ATTRIBUTE_VERBS = {
 }
 
 
-# Rita's actual Task 2 filenames
+# Rita's actual Task 2 filenames.
 TASK2_FILE_NAMES = {
     "pigment_network": "pigment_network",
     "negative_network": "negative_network",
@@ -41,7 +41,7 @@ TASK2_FILE_NAMES = {
 }
 
 
-# Rita's actual probability CSV column names
+# Rita's probability CSV column names.
 TASK2_CSV_COLUMNS = {
     "pigment_network": "pigment_network",
     "negative_network": "negative_network",
@@ -51,8 +51,8 @@ TASK2_CSV_COLUMNS = {
 }
 
 
-# Thresholds Rita used to create the binary PNG masks
-# These have already been applied, so Task 3 does not apply them again.
+# Pixel thresholds already used by Task 2 to create the binary masks.
+# Task 3 records these for documentation but does not threshold the PNGs again.
 TASK2_PIXEL_THRESHOLDS = {
     "pigment_network": 0.50,
     "negative_network": 0.50,
@@ -62,14 +62,18 @@ TASK2_PIXEL_THRESHOLDS = {
 }
 
 
-# Reliability-aware reporting policy
+# Conservative reliability-aware reporting policy.
+#
+# Pigment network had the strongest validation performance.
+# The remaining attributes showed weak or failed generalisation, so they
+# are reported as uncertain instead of turning model failure into certainty.
 MASK_STATUS_POLICY = {
     "pigment_network": {
         "positive": "present",
         "negative": "absent",
     },
     "negative_network": {
-        "positive": "present",
+        "positive": "uncertain",
         "negative": "uncertain",
     },
     "streaks": {
@@ -81,15 +85,18 @@ MASK_STATUS_POLICY = {
         "negative": "uncertain",
     },
     "globules": {
-        "positive": "present",
+        "positive": "uncertain",
         "negative": "uncertain",
     },
 }
 
 
-# Trained model information
-TASK2_MODEL_VERSION = "task2_model_best"
+# Model information included in the JSON.
+PIPELINE_MODEL_VERSION = "task1_unet__task2_vgg16_unet_best"
+DATASET_SPLIT = "validation"
 
 
-# Faisal's Task 1 mask filename format
-TASK1_MASK_SUFFIX = "_predicted_mask.png"
+# Lesion-description rules currently used by Task 3.
+SMALL_LESION_MAX_RATIO = 0.08
+MODERATE_LESION_MAX_RATIO = 0.25
+IRREGULAR_BORDER_THRESHOLD = 1.60

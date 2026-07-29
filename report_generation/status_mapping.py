@@ -5,7 +5,7 @@ def mask_to_status(
     attribute: str,
     has_positive_pixels: bool,
 ) -> str:
-    """Assign a report status from the real predicted mask."""
+    """Convert a real Task 2 binary-mask result into a report status."""
 
     if attribute not in MASK_STATUS_POLICY:
         raise ValueError(
@@ -24,6 +24,5 @@ def mask_to_status(
 if __name__ == "__main__":
     print(mask_to_status("pigment_network", True))
     print(mask_to_status("pigment_network", False))
-    print(mask_to_status("negative_network", False))
-    print(mask_to_status("streaks", True))
+    print(mask_to_status("negative_network", True))
     print(mask_to_status("streaks", False))
