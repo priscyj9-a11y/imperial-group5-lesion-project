@@ -1,144 +1,345 @@
-import json
+import argparse
 from pathlib import Path
 
-from export_csv import create_csv_row, save_rows
-from generate_json import build_json_record, save_json
-from generate_report import generate_findings_report, save_report
+from attribute_evidence import (
+    extract_attribute_evidence,
+    load_attribute_probabilities,
+)
+from config import (
+    DATASET_SPLIT,
+    PIPELINE_MODEL_VERSION,
+)
+from export_csv import (
+    create_csv_row,
+    save_rows,
+)
+from generate_json import (
+    build_json_record,
+    save_json,
+)
+from generate_report import (
+    generate_findings_report,
+    save_report,
+)
 from lesion_features import (
     calculate_border_category,
     calculate_size_category,
     load_binary_mask,
 )
-from validate_output import validate_json_and_report
+from validate_output import (
+    validate_json_and_report,
+)
 
 
-# Locate the project folders
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 
-# Input files and folders
-MOCK_PATH = BASE_DIR / "mock_predictions.json"
-LESION_MASK_DIR = PROJECT_ROOT / "outputs" / "lesion_masks"
+ATTRIBUTE_CSV_PATH = (
+    PROJECT_ROOT
+    / "outputs"
+    / "attribute_probabilities.csv"
+)
 
-# Output folders
+TASK2_PREDICTION_DIR = (
+    PROJECT_ROOT
+    / "outputs"
+    / "task2_predictions"
+)
+
+LESION_MASK_DIR = (
+    PROJECT_ROOT
+    / "outputs"
+    / "lesion_masks"
+)
+
 JSON_DIR = PROJECT_ROOT / "outputs" / "json"
 REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
+LOG_DIR = PROJECT_ROOT / "outputs" / "logs"
+
 CSV_PATH = REPORT_DIR / "findings_reports.csv"
+SUMMARY_PATH = LOG_DIR / "task3_validation_summary.txt"
 
 
-def main() -> None:
-    """Run the complete Task 3 pipeline for one mock image."""
+def find_lesion_mask(
+    image_id: str,
+) -> Path:
+    """Find a Task 1 mask using either accepted filename format."""
 
-    print("Starting Task 3 pipeline...")
+    candidates = [
+        LESION_MASK_DIR
+        / f"{image_id}_predicted_mask.png",
 
-    # 1. Load the mock Task 2 probabilities
-    if not MOCK_PATH.exists():
-        raise FileNotFoundError(
-            f"Mock prediction file was not found: {MOCK_PATH}"
+        LESION_MASK_DIR
+        / f"{image_id}.png",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        f"No Task 1 lesion mask found for {image_id}."
+    )
+
+
+def clear_generated_outputs() -> None:
+    """Delete old Task 3 outputs without deleting model predictions."""
+
+    JSON_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    REPORT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    LOG_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    for path in JSON_DIR.glob("*.json"):
+        path.unlink()
+
+    for path in REPORT_DIR.glob("*.txt"):
+        path.unlink()
+
+    if CSV_PATH.exists():
+        CSV_PATH.unlink()
+
+    if SUMMARY_PATH.exists():
+        SUMMARY_PATH.unlink()
+
+
+def write_summary(
+    total_images: int,
+    successful_images: int,
+    failures: dict[str, str],
+    output_path: Path,
+) -> None:
+    """Save a readable Task 3 validation summary."""
+
+    failed_images = len(failures)
+
+    lines = [
+        "Task 3 Validation Summary",
+        "",
+        f"Expected images: {total_images}",
+        f"Successfully processed: {successful_images}",
+        f"Failed images: {failed_images}",
+        f"JSON files generated: {successful_images}",
+        f"Written reports generated: {successful_images}",
+        f"CSV rows generated: {successful_images}",
+        "",
+    ]
+
+    if failures:
+        lines.append("Failed image IDs:")
+
+        for image_id, message in failures.items():
+            lines.append(
+                f"- {image_id}: {message}"
+            )
+    else:
+        lines.append(
+            "All images passed the Task 3 pipeline."
         )
 
-    with MOCK_PATH.open("r", encoding="utf-8") as file:
-        mock_data = json.load(file)
-
-    image_id = mock_data["image_id"]
-
-    print(f"Processing {image_id}")
-
-    # 2. Find and load the Task 1 lesion mask
-    lesion_mask_path = LESION_MASK_DIR / f"{image_id}.png"
-
-    if not lesion_mask_path.exists():
-        raise FileNotFoundError(
-            f"Lesion mask was not found: {lesion_mask_path}"
-        )
-
-    lesion_mask = load_binary_mask(lesion_mask_path)
-
-    # 3. Calculate lesion size information
-    area_ratio, size_category = calculate_size_category(
-        lesion_mask
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    # 4. Calculate lesion-border information
-    border_score, border_category = calculate_border_category(
-        lesion_mask
+    output_path.write_text(
+        "\n".join(lines),
+        encoding="utf-8",
     )
 
-    print(f"Lesion area ratio: {area_ratio:.4f}")
-    print(f"Size category: {size_category}")
-    print(f"Border score: {border_score:.4f}")
-    print(f"Border category: {border_category}")
 
-    # 5. Generate the structured JSON record
-    json_record = build_json_record(
-        image_id=image_id,
-        split=mock_data["split"],
-        model_version=mock_data["model_version"],
-        probabilities=mock_data["probabilities"],
+def run_pipeline(
+    limit: int | None = None,
+    clean: bool = False,
+) -> None:
+    """Run Task 3 on all or a limited number of real images."""
+
+    if clean:
+        clear_generated_outputs()
+
+    dataframe = load_attribute_probabilities(
+        ATTRIBUTE_CSV_PATH
     )
 
-    json_path = JSON_DIR / f"{image_id}.json"
+    if limit is not None:
+        dataframe = dataframe.head(limit)
 
-    save_json(
-        record=json_record,
-        output_path=json_path,
+    total_images = len(dataframe)
+
+    csv_rows = []
+    failures: dict[str, str] = {}
+
+    print(
+        f"Starting Task 3 for {total_images} images..."
     )
 
-    print("JSON saved successfully.")
+    for _, row in dataframe.iterrows():
+        image_id = row["image_id"]
 
-    # 6. Generate the controlled findings report
-    report_text = generate_findings_report(
-        json_record=json_record,
-        size_category=size_category,
-        border_category=border_category,
-    )
+        try:
+            print(f"Processing {image_id}")
 
-    report_path = REPORT_DIR / f"{image_id}.txt"
+            lesion_mask_path = find_lesion_mask(
+                image_id
+            )
 
-    save_report(
-        report_text=report_text,
-        output_path=report_path,
-    )
+            lesion_mask = load_binary_mask(
+                lesion_mask_path
+            )
 
-    print("Report saved successfully.")
-    print(report_text)
+            area_ratio, size_category = (
+                calculate_size_category(
+                    lesion_mask
+                )
+            )
 
-    # 7. Create one row for the combined CSV
-    csv_row = create_csv_row(
-        json_record=json_record,
-        report_text=report_text,
-        lesion_area_ratio=area_ratio,
-        size_category=size_category,
-        border_irregularity=border_score,
-        border_category=border_category,
-    )
+            border_score, border_category = (
+                calculate_border_category(
+                    lesion_mask
+                )
+            )
 
-    # 8. Save the CSV
+            probabilities, statuses = (
+                extract_attribute_evidence(
+                    image_id=image_id,
+                    probability_row=row,
+                    prediction_root=TASK2_PREDICTION_DIR,
+                    expected_shape=lesion_mask.shape,
+                )
+            )
+
+            json_record = build_json_record(
+                image_id=image_id,
+                split=DATASET_SPLIT,
+                model_version=PIPELINE_MODEL_VERSION,
+                probabilities=probabilities,
+                statuses=statuses,
+            )
+
+            report_text = generate_findings_report(
+                json_record=json_record,
+                size_category=size_category,
+                border_category=border_category,
+            )
+
+            validation_errors = (
+                validate_json_and_report(
+                    json_record=json_record,
+                    report_text=report_text,
+                    expected_statuses=statuses,
+                )
+            )
+
+            if validation_errors:
+                raise ValueError(
+                    " | ".join(validation_errors)
+                )
+
+            save_json(
+                record=json_record,
+                output_path=(
+                    JSON_DIR
+                    / f"{image_id}.json"
+                ),
+            )
+
+            save_report(
+                report_text=report_text,
+                output_path=(
+                    REPORT_DIR
+                    / f"{image_id}.txt"
+                ),
+            )
+
+            csv_rows.append(
+                create_csv_row(
+                    json_record=json_record,
+                    report_text=report_text,
+                    lesion_area_ratio=area_ratio,
+                    size_category=size_category,
+                    border_irregularity=border_score,
+                    border_category=border_category,
+                )
+            )
+
+        except Exception as error:
+            failures[image_id] = str(error)
+
+            print(
+                f"FAILED {image_id}: {error}"
+            )
+
     save_rows(
-        rows=[csv_row],
+        rows=csv_rows,
         output_path=CSV_PATH,
     )
 
-    print("CSV saved successfully.")
-
-    # 9. Check JSON-to-report consistency
-    errors = validate_json_and_report(
-        json_record=json_record,
-        report_text=report_text,
+    write_summary(
+        total_images=total_images,
+        successful_images=len(csv_rows),
+        failures=failures,
+        output_path=SUMMARY_PATH,
     )
 
-    if errors:
-        print("Validation failed:")
+    print("")
+    print("Task 3 run completed.")
+    print(
+        f"Successful: {len(csv_rows)}"
+    )
+    print(
+        f"Failed: {len(failures)}"
+    )
+    print(
+        f"Summary: {SUMMARY_PATH}"
+    )
 
-        for error in errors:
-            print(f"- {error}")
+    if failures:
+        raise SystemExit(1)
 
-        raise RuntimeError(
-            "Task 3 stopped because output validation failed."
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate Task 3 JSON, reports "
+            "and combined CSV outputs."
         )
+    )
 
-    print("Validation passed.")
-    print("Task 3 completed successfully.")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            "Process only the first N images "
+            "for testing."
+        ),
+    )
+
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help=(
+            "Remove previous Task 3 outputs "
+            "before running."
+        ),
+    )
+
+    args = parser.parse_args()
+
+    run_pipeline(
+        limit=args.limit,
+        clean=args.clean,
+    )
 
 
 if __name__ == "__main__":
