@@ -16,3 +16,32 @@ outputs/json/*.json
 outputs/reports/*.txt
 outputs/reports/*.csv
 outputs/logs/*.txt
+
+
+# macOS files
+.DS_Store
+**/.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local model prediction inputs
+outputs/attribute_masks/
+outputs/lesion_masks/
+outputs/task2_predictions/
+outputs/attribute_probabilities.csv
+
+# Generated Task 3 outputs
+outputs/json/*
+!outputs/json/.gitkeep
+
+outputs/reports/*
+!outputs/reports/.gitkeep
+
+outputs/logs/*
+!outputs/logs/.gitkeep
+
+# Local backups
+submission_backup/
+task3_validation_outputs.zip
