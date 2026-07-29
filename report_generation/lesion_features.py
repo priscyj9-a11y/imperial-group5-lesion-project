@@ -3,11 +3,24 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from config import (
+    IRREGULAR_BORDER_THRESHOLD,
+    MODERATE_LESION_MAX_RATIO,
+    SMALL_LESION_MAX_RATIO,
+)
+
 
 def load_binary_mask(
     mask_path: str | Path,
 ) -> np.ndarray:
-    """Load a lesion mask and convert it into binary values."""
+    """Load a lesion mask and convert it into binary values 0 and 1."""
+
+    mask_path = Path(mask_path)
+
+    if not mask_path.exists():
+        raise FileNotFoundError(
+            f"Lesion mask was not found: {mask_path}"
+        )
 
     mask = cv2.imread(
         str(mask_path),
@@ -15,8 +28,8 @@ def load_binary_mask(
     )
 
     if mask is None:
-        raise FileNotFoundError(
-            f"Could not load lesion mask: {mask_path}"
+        raise ValueError(
+            f"Lesion mask could not be opened: {mask_path}"
         )
 
     return (mask > 127).astype(np.uint8)
@@ -25,7 +38,7 @@ def load_binary_mask(
 def calculate_size_category(
     mask: np.ndarray,
 ) -> tuple[float, str]:
-    """Calculate the lesion area ratio and size category."""
+    """Calculate lesion area ratio and its controlled size description."""
 
     if mask.size == 0:
         raise ValueError("The lesion mask is empty.")
@@ -33,20 +46,20 @@ def calculate_size_category(
     lesion_pixels = int(mask.sum())
     area_ratio = lesion_pixels / mask.size
 
-    if area_ratio < 0.08:
-        size_category = "small"
-    elif area_ratio <= 0.25:
-        size_category = "moderate"
+    if area_ratio < SMALL_LESION_MAX_RATIO:
+        category = "small"
+    elif area_ratio <= MODERATE_LESION_MAX_RATIO:
+        category = "moderate"
     else:
-        size_category = "large"
+        category = "large"
 
-    return float(area_ratio), size_category
+    return float(area_ratio), category
 
 
 def calculate_border_category(
     mask: np.ndarray,
 ) -> tuple[float, str]:
-    """Calculate a simple border irregularity score."""
+    """Calculate a simple contour-based border irregularity score."""
 
     contours, _ = cv2.findContours(
         mask,
@@ -56,7 +69,7 @@ def calculate_border_category(
 
     if not contours:
         raise ValueError(
-            "No lesion contour was found in the mask."
+            "No lesion contour was found in the predicted mask."
         )
 
     largest_contour = max(
@@ -72,7 +85,7 @@ def calculate_border_category(
 
     if area <= 0:
         raise ValueError(
-            "The lesion contour has no valid area."
+            "The predicted lesion contour has no valid area."
         )
 
     irregularity = (
@@ -81,10 +94,10 @@ def calculate_border_category(
         4 * np.pi * area
     )
 
-    border_category = (
+    category = (
         "irregular"
-        if irregularity >= 1.60
+        if irregularity >= IRREGULAR_BORDER_THRESHOLD
         else "regular"
     )
 
-    return float(irregularity), border_category
+    return float(irregularity), category
