@@ -1,33 +1,32 @@
-import json
 from pathlib import Path
 from typing import Any
 
-from config import ATTRIBUTES, ATTRIBUTE_VERBS, DISPLAY_NAMES
-
-
-BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent
-
-JSON_PATH = PROJECT_ROOT / "outputs" / "json" / "ISIC_000001.json"
-REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
+from config import (
+    ATTRIBUTES,
+    ATTRIBUTE_VERBS,
+    DISPLAY_NAMES,
+)
 
 
 def generate_findings_report(
     json_record: dict[str, Any],
-    size_category: str = "moderate",
-    border_category: str = "irregular",
+    size_category: str,
+    border_category: str,
 ) -> str:
-    """Generate a controlled findings report from Task 3 JSON."""
+    """Generate controlled report text directly from the JSON."""
 
     presence = json_record["outputs"]["presence"]
+
     findings = []
 
     for attribute in ATTRIBUTES:
         status = presence[attribute]["status"]
         display_name = DISPLAY_NAMES[attribute]
-
         verb = ATTRIBUTE_VERBS[attribute]
-        findings.append(f"{display_name} {verb} {status}")
+
+        findings.append(
+            f"{display_name} {verb} {status}"
+        )
 
     attribute_text = "; ".join(findings)
 
@@ -38,32 +37,21 @@ def generate_findings_report(
     )
 
 
-def save_report(report_text: str, output_path: Path) -> None:
-    """Save a findings report as a text file."""
+def save_report(
+    report_text: str,
+    output_path: str | Path,
+) -> None:
+    """Save one findings report."""
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_path)
 
-    with output_path.open("w", encoding="utf-8") as file:
-        file.write(report_text)
-
-
-def main() -> None:
-    """Generate one sample findings report."""
-
-    with JSON_PATH.open("r", encoding="utf-8") as file:
-        json_record = json.load(file)
-
-    report_text = generate_findings_report(json_record)
-
-    output_path = (
-        REPORT_DIR / f"{json_record['image_id']}.txt"
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    save_report(report_text, output_path)
-
-    print(report_text)
-    print(f"Report saved successfully: {output_path}")
-
-
-if __name__ == "__main__":
-    main()
+    with output_path.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        file.write(report_text)

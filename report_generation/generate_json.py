@@ -3,13 +3,6 @@ from pathlib import Path
 from typing import Any
 
 from config import ATTRIBUTES
-from status_mapping import probability_to_status
-
-
-BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent
-MOCK_PATH = BASE_DIR / "mock_predictions.json"
-OUTPUT_DIR = PROJECT_ROOT / "outputs" / "json"
 
 
 def build_json_record(
@@ -17,28 +10,58 @@ def build_json_record(
     split: str,
     model_version: str,
     probabilities: dict[str, float],
+    statuses: dict[str, str],
 ) -> dict[str, Any]:
-    """Build the structured Task 3 JSON record."""
+    """Build one structured Task 3 JSON record."""
 
-    missing_attributes = [
+    missing_probabilities = [
         attribute
         for attribute in ATTRIBUTES
         if attribute not in probabilities
     ]
 
-    if missing_attributes:
+    missing_statuses = [
+        attribute
+        for attribute in ATTRIBUTES
+        if attribute not in statuses
+    ]
+
+    if missing_probabilities:
         raise ValueError(
-            f"Missing attribute probabilities: {missing_attributes}"
+            f"Missing probabilities: {missing_probabilities}"
+        )
+
+    if missing_statuses:
+        raise ValueError(
+            f"Missing statuses: {missing_statuses}"
         )
 
     presence = {}
 
     for attribute in ATTRIBUTES:
-        probability = float(probabilities[attribute])
+        probability = float(
+            probabilities[attribute]
+        )
+
+        status = statuses[attribute]
+
+        if not 0.0 <= probability <= 1.0:
+            raise ValueError(
+                f"{attribute} probability is outside 0 to 1."
+            )
+
+        if status not in {
+            "present",
+            "absent",
+            "uncertain",
+        }:
+            raise ValueError(
+                f"Invalid status for {attribute}: {status}"
+            )
 
         presence[attribute] = {
             "prob": round(probability, 4),
-            "status": probability_to_status(probability),
+            "status": status,
         }
 
     return {
@@ -54,35 +77,23 @@ def build_json_record(
 
 def save_json(
     record: dict[str, Any],
-    output_path: Path,
+    output_path: str | Path,
 ) -> None:
-    """Save a JSON record to a file."""
+    """Save one Task 3 JSON record."""
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_path)
 
-    with output_path.open("w", encoding="utf-8") as file:
-        json.dump(record, file, indent=2)
-
-
-def main() -> None:
-    """Generate one Task 3 JSON file using mock predictions."""
-
-    with MOCK_PATH.open("r", encoding="utf-8") as file:
-        mock_data = json.load(file)
-
-    record = build_json_record(
-        image_id=mock_data["image_id"],
-        split=mock_data["split"],
-        model_version=mock_data["model_version"],
-        probabilities=mock_data["probabilities"],
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    output_path = OUTPUT_DIR / f"{mock_data['image_id']}.json"
-
-    save_json(record, output_path)
-
-    print(f"JSON generated successfully: {output_path}")
-
-
-if __name__ == "__main__":
-    main()
+    with output_path.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            record,
+            file,
+            indent=2,
+        )
