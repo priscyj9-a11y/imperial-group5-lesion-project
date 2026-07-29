@@ -1,0 +1,18 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Model checkpoints
+*.pth
+*.pt
+
+# Local model prediction inputs
+outputs/lesion_masks/*.png
+outputs/task2_predictions/
+outputs/attribute_probabilities.csv
+
+# Generated Task 3 outputs
+outputs/json/*.json
+outputs/reports/*.txt
+outputs/reports/*.csv
+outputs/logs/*.txt

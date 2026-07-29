@@ -1,6 +1,9 @@
+"""Validate Task 3 JSON and findings-report consistency."""
+
+import re
 from typing import Any
 
-from config import (
+from .config import (
     ATTRIBUTES,
     ATTRIBUTE_VERBS,
     DISPLAY_NAMES,
@@ -19,7 +22,10 @@ def validate_json_and_report(
     report_text: str,
     expected_statuses: dict[str, str] | None = None,
 ) -> list[str]:
-    """Check structure, terminology and JSON-to-report consistency."""
+    """Return a list of validation errors.
+
+    An empty list means the JSON and report passed validation.
+    """
 
     errors: list[str] = []
 
@@ -33,7 +39,7 @@ def validate_json_and_report(
 
     missing_fields = (
         required_fields
-        - json_record.keys()
+        - set(json_record.keys())
     )
 
     if missing_fields:
@@ -42,6 +48,23 @@ def validate_json_and_report(
         )
 
         return errors
+
+    image_id = str(json_record["image_id"])
+
+    if re.fullmatch(r"\d{6}", image_id) is None:
+        errors.append(
+            f"Image ID must contain six digits: {image_id}"
+        )
+
+    if json_record["split"] != "val":
+        errors.append(
+            f"Expected split 'val', received: {json_record['split']}"
+        )
+
+    if "mock" in str(json_record["model_version"]).lower():
+        errors.append(
+            "The final JSON still contains a mock model version."
+        )
 
     if json_record["attributes_order"] != ATTRIBUTES:
         errors.append(
@@ -53,6 +76,8 @@ def validate_json_and_report(
         .get("outputs", {})
         .get("presence", {})
     )
+
+    report_lower = report_text.lower()
 
     for attribute in ATTRIBUTES:
         if attribute not in presence:
@@ -71,6 +96,7 @@ def validate_json_and_report(
             errors.append(
                 f"{attribute} does not have a numeric probability."
             )
+
         elif not 0.0 <= probability <= 1.0:
             errors.append(
                 f"{attribute} probability is outside 0 to 1."
@@ -93,7 +119,7 @@ def validate_json_and_report(
         display_name = DISPLAY_NAMES[attribute].lower()
         verb = ATTRIBUTE_VERBS[attribute]
 
-        if display_name not in report_text.lower():
+        if display_name not in report_lower:
             errors.append(
                 f"The report is missing '{display_name}'."
             )
@@ -102,7 +128,7 @@ def validate_json_and_report(
             f"{display_name} {verb} {status}"
         )
 
-        if expected_phrase not in report_text.lower():
+        if expected_phrase not in report_lower:
             errors.append(
                 f"The report does not match the JSON "
                 f"status for {attribute}."
@@ -117,7 +143,7 @@ def validate_json_and_report(
     }
 
     for term in unsupported_terms:
-        if term in report_text.lower():
+        if term in report_lower:
             errors.append(
                 f"Unsupported diagnostic term found: {term}"
             )

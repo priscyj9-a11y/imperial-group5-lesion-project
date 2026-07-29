@@ -1,32 +1,34 @@
+"""Run the complete Task 3 anchored findings pipeline."""
+
 import argparse
 from pathlib import Path
 
-from attribute_evidence import (
+from .attribute_evidence import (
     extract_attribute_evidence,
     load_attribute_probabilities,
 )
-from config import (
+from .config import (
     DATASET_SPLIT,
     PIPELINE_MODEL_VERSION,
 )
-from export_csv import (
+from .export_csv import (
     create_csv_row,
     save_rows,
 )
-from generate_json import (
+from .generate_json import (
     build_json_record,
     save_json,
 )
-from generate_report import (
+from .generate_report import (
     generate_findings_report,
     save_report,
 )
-from lesion_features import (
+from .lesion_features import (
     calculate_border_category,
     calculate_size_category,
     load_binary_mask,
 )
-from validate_output import (
+from .validate_output import (
     validate_json_and_report,
 )
 
@@ -52,25 +54,52 @@ LESION_MASK_DIR = (
     / "lesion_masks"
 )
 
-JSON_DIR = PROJECT_ROOT / "outputs" / "json"
-REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
-LOG_DIR = PROJECT_ROOT / "outputs" / "logs"
+JSON_DIR = (
+    PROJECT_ROOT
+    / "outputs"
+    / "json"
+)
 
-CSV_PATH = REPORT_DIR / "findings_reports.csv"
-SUMMARY_PATH = LOG_DIR / "task3_validation_summary.txt"
+REPORT_DIR = (
+    PROJECT_ROOT
+    / "outputs"
+    / "reports"
+)
+
+LOG_DIR = (
+    PROJECT_ROOT
+    / "outputs"
+    / "logs"
+)
+
+CSV_PATH = (
+    REPORT_DIR
+    / "findings_reports.csv"
+)
+
+SUMMARY_PATH = (
+    LOG_DIR
+    / "task3_validation_summary.txt"
+)
 
 
 def find_lesion_mask(
     image_id: str,
 ) -> Path:
-    """Find a Task 1 mask using either accepted filename format."""
+    """Find a Task 1 mask using common filename formats."""
 
     candidates = [
+        LESION_MASK_DIR
+        / f"{image_id}.png",
+
         LESION_MASK_DIR
         / f"{image_id}_predicted_mask.png",
 
         LESION_MASK_DIR
-        / f"{image_id}.png",
+        / f"ISIC_{image_id}.png",
+
+        LESION_MASK_DIR
+        / f"ISIC_{image_id}_predicted_mask.png",
     ]
 
     for candidate in candidates:
@@ -78,12 +107,12 @@ def find_lesion_mask(
             return candidate
 
     raise FileNotFoundError(
-        f"No Task 1 lesion mask found for {image_id}."
+        f"No Task 1 lesion mask was found for {image_id}."
     )
 
 
 def clear_generated_outputs() -> None:
-    """Delete old Task 3 outputs without deleting model predictions."""
+    """Remove old Task 3 outputs without deleting model predictions."""
 
     JSON_DIR.mkdir(
         parents=True,
@@ -117,18 +146,15 @@ def write_summary(
     total_images: int,
     successful_images: int,
     failures: dict[str, str],
-    output_path: Path,
 ) -> None:
-    """Save a readable Task 3 validation summary."""
-
-    failed_images = len(failures)
+    """Write the final Task 3 processing summary."""
 
     lines = [
         "Task 3 Validation Summary",
         "",
         f"Expected images: {total_images}",
         f"Successfully processed: {successful_images}",
-        f"Failed images: {failed_images}",
+        f"Failed images: {len(failures)}",
         f"JSON files generated: {successful_images}",
         f"Written reports generated: {successful_images}",
         f"CSV rows generated: {successful_images}",
@@ -142,17 +168,18 @@ def write_summary(
             lines.append(
                 f"- {image_id}: {message}"
             )
+
     else:
         lines.append(
             "All images passed the Task 3 pipeline."
         )
 
-    output_path.parent.mkdir(
+    SUMMARY_PATH.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    output_path.write_text(
+    SUMMARY_PATH.write_text(
         "\n".join(lines),
         encoding="utf-8",
     )
@@ -162,7 +189,7 @@ def run_pipeline(
     limit: int | None = None,
     clean: bool = False,
 ) -> None:
-    """Run Task 3 on all or a limited number of real images."""
+    """Run Task 3 on all images or a limited test subset."""
 
     if clean:
         clear_generated_outputs()
@@ -172,6 +199,11 @@ def run_pipeline(
     )
 
     if limit is not None:
+        if limit <= 0:
+            raise ValueError(
+                "--limit must be greater than zero."
+            )
+
         dataframe = dataframe.head(limit)
 
     total_images = len(dataframe)
@@ -184,7 +216,7 @@ def run_pipeline(
     )
 
     for _, row in dataframe.iterrows():
-        image_id = row["image_id"]
+        image_id = str(row["image_id"])
 
         try:
             print(f"Processing {image_id}")
@@ -288,30 +320,25 @@ def run_pipeline(
         total_images=total_images,
         successful_images=len(csv_rows),
         failures=failures,
-        output_path=SUMMARY_PATH,
     )
 
     print("")
     print("Task 3 run completed.")
-    print(
-        f"Successful: {len(csv_rows)}"
-    )
-    print(
-        f"Failed: {len(failures)}"
-    )
-    print(
-        f"Summary: {SUMMARY_PATH}"
-    )
+    print(f"Successful: {len(csv_rows)}")
+    print(f"Failed: {len(failures)}")
+    print(f"Summary: {SUMMARY_PATH}")
 
     if failures:
         raise SystemExit(1)
 
 
 def main() -> None:
+    """Read command-line arguments and run Task 3."""
+
     parser = argparse.ArgumentParser(
         description=(
-            "Generate Task 3 JSON, reports "
-            "and combined CSV outputs."
+            "Generate Task 3 JSON files, reports "
+            "and a combined CSV."
         )
     )
 
@@ -319,19 +346,13 @@ def main() -> None:
         "--limit",
         type=int,
         default=None,
-        help=(
-            "Process only the first N images "
-            "for testing."
-        ),
+        help="Process only the first N images.",
     )
 
     parser.add_argument(
         "--clean",
         action="store_true",
-        help=(
-            "Remove previous Task 3 outputs "
-            "before running."
-        ),
+        help="Remove old generated outputs first.",
     )
 
     args = parser.parse_args()

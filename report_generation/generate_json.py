@@ -1,8 +1,17 @@
+"""Create and save Task 3 structured JSON records."""
+
 import json
 from pathlib import Path
 from typing import Any
 
-from config import ATTRIBUTES
+from .config import ATTRIBUTES
+
+
+VALID_STATUSES = {
+    "present",
+    "absent",
+    "uncertain",
+}
 
 
 def build_json_record(
@@ -12,7 +21,7 @@ def build_json_record(
     probabilities: dict[str, float],
     statuses: dict[str, str],
 ) -> dict[str, Any]:
-    """Build one structured Task 3 JSON record."""
+    """Build one strict Task 3 JSON record."""
 
     missing_probabilities = [
         attribute
@@ -36,7 +45,7 @@ def build_json_record(
             f"Missing statuses: {missing_statuses}"
         )
 
-    presence = {}
+    presence: dict[str, dict[str, float | str]] = {}
 
     for attribute in ATTRIBUTES:
         probability = float(
@@ -50,11 +59,7 @@ def build_json_record(
                 f"{attribute} probability is outside 0 to 1."
             )
 
-        if status not in {
-            "present",
-            "absent",
-            "uncertain",
-        }:
+        if status not in VALID_STATUSES:
             raise ValueError(
                 f"Invalid status for {attribute}: {status}"
             )

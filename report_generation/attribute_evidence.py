@@ -1,15 +1,31 @@
+"""Load Task 2 probabilities and predicted attribute masks."""
+
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from PIL import Image
 
-from config import (
+from .config import (
     ATTRIBUTES,
     TASK2_CSV_COLUMNS,
     TASK2_FILE_NAMES,
 )
-from status_mapping import mask_to_status
+from .status_mapping import mask_to_status
+
+
+def normalise_image_id(value: object) -> str:
+    """Convert image IDs into the canonical six-digit format."""
+
+    image_id = str(value).strip()
+
+    if image_id.upper().startswith("ISIC_"):
+        image_id = image_id[5:]
+
+    if image_id.endswith(".0"):
+        image_id = image_id[:-2]
+
+    return image_id.zfill(6)
 
 
 def load_attribute_probabilities(
@@ -34,12 +50,8 @@ def load_attribute_probabilities(
             "The probability CSV does not contain an image_id column."
         )
 
-    dataframe["image_id"] = (
-        dataframe["image_id"]
-        .astype(str)
-        .str.strip()
-        .str.replace(r"\.0$", "", regex=True)
-        .str.zfill(6)
+    dataframe["image_id"] = dataframe["image_id"].map(
+        normalise_image_id
     )
 
     required_columns = [
@@ -86,7 +98,7 @@ def load_binary_attribute_mask(
     mask_path: str | Path,
     expected_shape: tuple[int, int] | None = None,
 ) -> np.ndarray:
-    """Load one real Task 2 predicted binary mask."""
+    """Load one Task 2 predicted attribute mask."""
 
     mask_path = Path(mask_path)
 
@@ -120,7 +132,7 @@ def extract_attribute_evidence(
     prediction_root: str | Path,
     expected_shape: tuple[int, int],
 ) -> tuple[dict[str, float], dict[str, str]]:
-    """Extract Task 2 scores and reliability-aware report statuses."""
+    """Extract Task 2 scores and controlled report statuses."""
 
     prediction_root = Path(prediction_root)
 
@@ -149,9 +161,10 @@ def extract_attribute_evidence(
         has_positive_pixels = bool(mask.any())
 
         probabilities[attribute] = probability
+
         statuses[attribute] = mask_to_status(
-            attribute,
-            has_positive_pixels,
+            attribute=attribute,
+            has_positive_pixels=has_positive_pixels,
         )
 
     return probabilities, statuses

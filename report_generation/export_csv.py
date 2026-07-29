@@ -1,9 +1,11 @@
+"""Export all Task 3 findings into one combined CSV."""
+
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from config import ATTRIBUTES
+from .config import ATTRIBUTES
 
 
 def create_csv_row(
@@ -11,10 +13,10 @@ def create_csv_row(
     report_text: str,
     lesion_area_ratio: float,
     size_category: str,
-    border_irregularity: float,
+    border_irregularity: float | None,
     border_category: str,
 ) -> dict[str, Any]:
-    """Create one row for the combined findings CSV."""
+    """Create one row for the combined Task 3 CSV."""
 
     row = {
         "image_id": json_record["image_id"],
