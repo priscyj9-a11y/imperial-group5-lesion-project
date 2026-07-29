@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 import numpy as np
@@ -19,19 +18,38 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class LesionDataset(Dataset):
     """Pairs each image with its matching mask by filename.
 
-    Expects: image_dir/{id}.jpg  and  mask_dir/{id}{mask_suffix}.png
-    (same convention as resize_image.py / augmentation.py)
+    Expects: image_dir/{id}.png  and  mask_dir/{id}{mask_suffix}.png
+
+    If splits_csv + split are given, only the IDs belonging to that split
+    are used - this is how we train on the 80% train set and never touch val.
     """
 
-    def __init__(self, image_dir: Path, mask_dir: Path, mask_suffix: str = "_segmentation"):
+    def __init__(self, image_dir: Path, mask_dir: Path, mask_suffix: str = "_segmentation",
+                 splits_csv: Path = None, split: str = None):
         self.image_dir = Path(image_dir)
         self.mask_dir = Path(mask_dir)
         self.mask_suffix = mask_suffix
 
         valid_exts = (".jpg", ".jpeg", ".png")
-        self.image_paths = sorted(
+        # grab every image file in the folder
+        all_paths = sorted(
             p for p in self.image_dir.iterdir() if p.suffix.lower() in valid_exts
         )
+
+        # if a splits file + split name are given, keep ONLY the IDs for that split
+        if splits_csv is not None and split is not None:
+            import csv
+            # read splits.csv into a set of the IDs we want, e.g. all "train" rows
+            wanted = set()
+            with open(splits_csv, newline="") as f:
+                for row in csv.DictReader(f):
+                    if row["split"] == split:
+                        wanted.add(row["image_id"])
+            # keep a path only if its ID (the filename stem) is in that split
+            all_paths = [p for p in all_paths if p.stem in wanted]
+            print(f"filtered to split '{split}': {len(all_paths)} images")
+
+        self.image_paths = all_paths
 
     def __len__(self) -> int:
         return len(self.image_paths)
@@ -63,9 +81,11 @@ def train(
     epochs: int = 20,
     batch_size: int = 4,
     learning_rate: float = 1e-4,
+    splits_csv: Path = None,
+    split: str = None,
 ):
     """Train a fresh UNet and save its weights to checkpoint_path."""
-    dataset = LesionDataset(image_dir, mask_dir)
+    dataset = LesionDataset(image_dir, mask_dir, splits_csv=splits_csv, split=split)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     model = UNet(in_channels=3, out_channels=1).to(DEVICE)
@@ -110,7 +130,7 @@ def load_trained_model(checkpoint_path: Path) -> UNet:
 
 
 def predict_mask(model: UNet, image_path: Path, threshold: float = 0.5) -> Image.Image:
-   
+
     img = Image.open(image_path).convert("RGB")
     if img.size != (IMG_SIZE, IMG_SIZE):
         raise ValueError(
@@ -158,6 +178,10 @@ if __name__ == "__main__":
     train_parser.add_argument("--epochs", type=int, default=20)
     train_parser.add_argument("--batch-size", type=int, default=4)
     train_parser.add_argument("--lr", type=float, default=1e-4)
+    train_parser.add_argument("--splits-csv", type=Path, default=None,
+                              help="Optional splits.csv to filter by split")
+    train_parser.add_argument("--split", type=str, default=None,
+                              help="Which split to train on, e.g. 'train'")
 
     predict_parser = subparsers.add_parser("predict")
     predict_parser.add_argument("--checkpoint", type=Path, required=True)
@@ -175,7 +199,11 @@ if __name__ == "__main__":
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rate=args.lr,
+            splits_csv=args.splits_csv,
+            split=args.split,
         )
     elif args.command == "predict":
         loaded_model = load_trained_model(args.checkpoint)
         predict_folder(loaded_model, args.image_dir, args.output_dir, threshold=args.threshold)
+
+        
