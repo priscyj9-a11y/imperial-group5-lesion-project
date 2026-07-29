@@ -1,3 +1,8 @@
+from lesion_features import (
+    calculate_border_category,
+    calculate_size_category,
+    load_binary_mask,
+)
 import json
 from pathlib import Path
 
@@ -12,6 +17,7 @@ PROJECT_ROOT = BASE_DIR.parent
 
 MOCK_PATH = BASE_DIR / "mock_predictions.json"
 
+LESION_MASK_DIR = PROJECT_ROOT / "outputs" / "lesion_masks"
 JSON_DIR = PROJECT_ROOT / "outputs" / "json"
 REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
 CSV_PATH = REPORT_DIR / "findings_reports.csv"
@@ -25,7 +31,18 @@ def main() -> None:
     with MOCK_PATH.open("r", encoding="utf-8") as file:
         mock_data = json.load(file)
 
-    image_id = mock_data["image_id"]
+        image_id = mock_data["image_id"]
+    lesion_mask_path = LESION_MASK_DIR / f"{image_id}.png"
+
+    lesion_mask = load_binary_mask(lesion_mask_path)
+
+    area_ratio, size_category = calculate_size_category(
+        lesion_mask
+    )
+
+    border_score, border_category = calculate_border_category(
+        lesion_mask
+    )
 
     print(f"Processing {image_id}")
 
@@ -43,8 +60,8 @@ def main() -> None:
 
     report_text = generate_findings_report(
         json_record=json_record,
-        size_category="moderate",
-        border_category="irregular",
+        size_category=size_category,
+        border_category=border_category,
     )
 
     report_path = REPORT_DIR / f"{image_id}.txt"
