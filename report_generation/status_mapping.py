@@ -1,21 +1,29 @@
-from config import ABSENT_THRESHOLD, PRESENT_THRESHOLD
+from config import MASK_STATUS_POLICY
 
-def probability_to_status(probability: float) -> str:
-    """Convert an attribute probability into a report status."""
-    if not 0.0 <= probability <= 1.0:
+
+def mask_to_status(
+    attribute: str,
+    has_positive_pixels: bool,
+) -> str:
+    """Assign a report status from the real predicted mask."""
+
+    if attribute not in MASK_STATUS_POLICY:
         raise ValueError(
-            f"Probability must be between 0 and 1, received {probability}."
+            f"Unknown attribute: {attribute}"
         )
 
-    if probability >= PRESENT_THRESHOLD:
-        return "present"
+    mask_state = (
+        "positive"
+        if has_positive_pixels
+        else "negative"
+    )
 
-    if probability <= ABSENT_THRESHOLD:
-        return "absent"
+    return MASK_STATUS_POLICY[attribute][mask_state]
 
-    return "uncertain"
 
 if __name__ == "__main__":
-    print(probability_to_status(0.81))  # expected: present
-    print(probability_to_status(0.12))  # expected: absent
-    print(probability_to_status(0.51))  # expected: uncertain
+    print(mask_to_status("pigment_network", True))
+    print(mask_to_status("pigment_network", False))
+    print(mask_to_status("negative_network", False))
+    print(mask_to_status("streaks", True))
+    print(mask_to_status("streaks", False))
