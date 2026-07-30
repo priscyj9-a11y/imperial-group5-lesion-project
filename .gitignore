@@ -1,47 +1,45 @@
-# Python cache
-__pycache__/
-*.pyc
-
-# Model checkpoints
-*.pth
-*.pt
-
-# Local model prediction inputs
-outputs/lesion_masks/*.png
-outputs/task2_predictions/
-outputs/attribute_probabilities.csv
-
-# Generated Task 3 outputs
-outputs/json/*.json
-outputs/reports/*.txt
-outputs/reports/*.csv
-outputs/logs/*.txt
-
-
-# macOS files
-.DS_Store
-**/.DS_Store
-
-# Python cache
+﻿# ---- Python ----
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+.ipynb_checkpoints/
 
-# Local model prediction inputs
-outputs/attribute_masks/
-outputs/lesion_masks/
-outputs/task2_predictions/
-outputs/attribute_probabilities.csv
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
 
-# Generated Task 3 outputs
-outputs/json/*
-!outputs/json/.gitkeep
+# ---- Dataset: NEVER commit medical images ----
+# the dataset lives OUTSIDE this repo. these lines are a safety net
+# in case anyone copies it in by accident.
+data/raw/
+data/processed/
+data/cache/
+project_data/
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
 
-outputs/reports/*
-!outputs/reports/.gitkeep
+# but DO keep our small shared CSVs and folder placeholders
+!data/splits.csv
+!data/attribute_frequency.csv
+!**/.gitkeep
 
-outputs/logs/*
-!outputs/logs/.gitkeep
+# ---- Model checkpoints and archives (too big for GitHub) ----
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.zip
 
-# Local backups
-submission_backup/
-task3_validation_outputs.zip
+# ---- Logs ----
+*.log
+
+# ---- OS / editor junk ----
+.DS_Store
+Thumbs.db
+*.swp
+*.Identifier
