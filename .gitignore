@@ -1,8 +1,8 @@
-<<<<<<< HEAD
-# ---- Python ----
+﻿# ---- Python ----
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.pyd
 .ipynb_checkpoints/
 
 # ---- Virtual environments ----
@@ -28,27 +28,18 @@ project_data/
 !data/attribute_frequency.csv
 !**/.gitkeep
 
-# ---- Model checkpoints (too big for GitHub) ----
+# ---- Model checkpoints and archives (too big for GitHub) ----
 *.pt
 *.pth
 *.ckpt
 *.h5
+*.zip
+
+# ---- Logs ----
+*.log
 
 # ---- OS / editor junk ----
 .DS_Store
 Thumbs.db
 *.swp
-=======
-.venv/
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.zip
 *.Identifier
-*.log
-.DS_Store
-outputs/
-attribute_detection/__pycache__/
-preprocessing/__pycache__/
->>>>>>> origin/rita-ivana-task2-attribute-detection
