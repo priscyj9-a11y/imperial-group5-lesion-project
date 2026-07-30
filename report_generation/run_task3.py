@@ -28,47 +28,49 @@ from .lesion_features import (
     calculate_size_category,
     load_binary_mask,
 )
-from .validate_output import (
-    validate_json_and_report,
-)
+from .validate_output import validate_json_and_report
 
+
+# ------------------------------------------------------------------
+# Project paths
+# ------------------------------------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 
-ATTRIBUTE_CSV_PATH = (
+TEST_ROOT = (
     PROJECT_ROOT
     / "outputs"
+    / "test"
+)
+
+ATTRIBUTE_CSV_PATH = (
+    TEST_ROOT
     / "attribute_probabilities.csv"
 )
 
 TASK2_PREDICTION_DIR = (
-    PROJECT_ROOT
-    / "outputs"
+    TEST_ROOT
     / "task2_predictions"
 )
 
 LESION_MASK_DIR = (
-    PROJECT_ROOT
-    / "outputs"
+    TEST_ROOT
     / "lesion_masks"
 )
 
 JSON_DIR = (
-    PROJECT_ROOT
-    / "outputs"
+    TEST_ROOT
     / "json"
 )
 
 REPORT_DIR = (
-    PROJECT_ROOT
-    / "outputs"
+    TEST_ROOT
     / "reports"
 )
 
 LOG_DIR = (
-    PROJECT_ROOT
-    / "outputs"
+    TEST_ROOT
     / "logs"
 )
 
@@ -83,10 +85,17 @@ SUMMARY_PATH = (
 )
 
 
+# ------------------------------------------------------------------
+# Input file handling
+# ------------------------------------------------------------------
+
 def find_lesion_mask(
     image_id: str,
 ) -> Path:
-    """Find a Task 1 mask using common filename formats."""
+    """Find a Task 1 predicted lesion mask.
+
+    Supports the common filename formats used by the group.
+    """
 
     candidates = [
         LESION_MASK_DIR
@@ -107,12 +116,19 @@ def find_lesion_mask(
             return candidate
 
     raise FileNotFoundError(
-        f"No Task 1 lesion mask was found for {image_id}."
+        f"No Task 1 lesion mask was found for image {image_id}."
     )
 
 
+# ------------------------------------------------------------------
+# Output directory handling
+# ------------------------------------------------------------------
+
 def clear_generated_outputs() -> None:
-    """Remove old Task 3 outputs without deleting model predictions."""
+    """Remove previous generated Task 3 outputs.
+
+    Task 1 and Task 2 prediction inputs are not deleted.
+    """
 
     JSON_DIR.mkdir(
         parents=True,
@@ -147,11 +163,12 @@ def write_summary(
     successful_images: int,
     failures: dict[str, str],
 ) -> None:
-    """Write the final Task 3 processing summary."""
+    """Write a summary of the complete Task 3 run."""
 
     lines = [
-        "Task 3 Validation Summary",
+        "Task 3 Processing Summary",
         "",
+        f"Dataset split: {DATASET_SPLIT}",
         f"Expected images: {total_images}",
         f"Successfully processed: {successful_images}",
         f"Failed images: {len(failures)}",
@@ -185,11 +202,15 @@ def write_summary(
     )
 
 
+# ------------------------------------------------------------------
+# Main Task 3 pipeline
+# ------------------------------------------------------------------
+
 def run_pipeline(
     limit: int | None = None,
     clean: bool = False,
 ) -> None:
-    """Run Task 3 on all images or a limited test subset."""
+    """Run Task 3 on all test images or a limited subset."""
 
     if clean:
         clear_generated_outputs()
@@ -212,7 +233,8 @@ def run_pipeline(
     failures: dict[str, str] = {}
 
     print(
-        f"Starting Task 3 for {total_images} images..."
+        f"Starting Task 3 for {total_images} "
+        f"{DATASET_SPLIT} images..."
     )
 
     for _, row in dataframe.iterrows():
@@ -220,6 +242,10 @@ def run_pipeline(
 
         try:
             print(f"Processing {image_id}")
+
+            # ------------------------------------------------------
+            # Task 1 evidence
+            # ------------------------------------------------------
 
             lesion_mask_path = find_lesion_mask(
                 image_id
@@ -241,6 +267,10 @@ def run_pipeline(
                 )
             )
 
+            # ------------------------------------------------------
+            # Task 2 evidence
+            # ------------------------------------------------------
+
             probabilities, statuses = (
                 extract_attribute_evidence(
                     image_id=image_id,
@@ -250,6 +280,10 @@ def run_pipeline(
                 )
             )
 
+            # ------------------------------------------------------
+            # Structured JSON
+            # ------------------------------------------------------
+
             json_record = build_json_record(
                 image_id=image_id,
                 split=DATASET_SPLIT,
@@ -258,11 +292,19 @@ def run_pipeline(
                 statuses=statuses,
             )
 
+            # ------------------------------------------------------
+            # Written findings report
+            # ------------------------------------------------------
+
             report_text = generate_findings_report(
                 json_record=json_record,
                 size_category=size_category,
                 border_category=border_category,
             )
+
+            # ------------------------------------------------------
+            # Validation
+            # ------------------------------------------------------
 
             validation_errors = (
                 validate_json_and_report(
@@ -276,6 +318,10 @@ def run_pipeline(
                 raise ValueError(
                     " | ".join(validation_errors)
                 )
+
+            # ------------------------------------------------------
+            # Save individual outputs
+            # ------------------------------------------------------
 
             save_json(
                 record=json_record,
@@ -292,6 +338,10 @@ def run_pipeline(
                     / f"{image_id}.txt"
                 ),
             )
+
+            # ------------------------------------------------------
+            # Add row to combined CSV
+            # ------------------------------------------------------
 
             csv_rows.append(
                 create_csv_row(
@@ -311,6 +361,7 @@ def run_pipeline(
                 f"FAILED {image_id}: {error}"
             )
 
+    # Save the combined CSV even if some images failed.
     save_rows(
         rows=csv_rows,
         output_path=CSV_PATH,
@@ -332,12 +383,16 @@ def run_pipeline(
         raise SystemExit(1)
 
 
+# ------------------------------------------------------------------
+# Command-line interface
+# ------------------------------------------------------------------
+
 def main() -> None:
-    """Read command-line arguments and run Task 3."""
+    """Read command-line options and run Task 3."""
 
     parser = argparse.ArgumentParser(
         description=(
-            "Generate Task 3 JSON files, reports "
+            "Generate Task 3 JSON files, findings reports "
             "and a combined CSV."
         )
     )
@@ -346,13 +401,19 @@ def main() -> None:
         "--limit",
         type=int,
         default=None,
-        help="Process only the first N images.",
+        help=(
+            "Process only the first N images. "
+            "Useful for testing."
+        ),
     )
 
     parser.add_argument(
         "--clean",
         action="store_true",
-        help="Remove old generated outputs first.",
+        help=(
+            "Remove previous generated JSON, reports, "
+            "CSV and summary files before running."
+        ),
     )
 
     args = parser.parse_args()
