@@ -1,45 +1,116 @@
-﻿# ---- Python ----
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.ipynb_checkpoints/
+﻿# ==============================================================
+# macOS system files
+# ==============================================================
 
-# ---- Virtual environments ----
+.DS_Store
+**/.DS_Store
+
+
+# ==============================================================
+# Python cache and compiled files
+# ==============================================================
+
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+
+# ==============================================================
+# Python environments and local environment variables
+# ==============================================================
+
 .venv/
 venv/
 env/
+.env
+.env.*
 
-# ---- Dataset: NEVER commit medical images ----
-# the dataset lives OUTSIDE this repo. these lines are a safety net
-# in case anyone copies it in by accident.
-data/raw/
-data/processed/
-data/cache/
-project_data/
-*.jpg
-*.jpeg
-*.png
-*.tif
-*.tiff
 
-# but DO keep our small shared CSVs and folder placeholders
-!data/splits.csv
-!data/attribute_frequency.csv
-!**/.gitkeep
+# ==============================================================
+# Notebook and editor files
+# ==============================================================
 
-# ---- Model checkpoints and archives (too big for GitHub) ----
-*.pt
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+
+# ==============================================================
+# Trained model checkpoints
+# ==============================================================
+
 *.pth
+*.pt
 *.ckpt
-*.h5
-*.zip
 
-# ---- Logs ----
+
+# ==============================================================
+# Local validation inputs
+# ==============================================================
+
+outputs/attribute_probabilities.csv
+outputs/lesion_masks/
+outputs/attribute_masks/
+outputs/task2_predictions/
+
+
+# ==============================================================
+# Generated validation outputs
+# Keep only the empty-folder placeholder files in Git
+# ==============================================================
+
+outputs/json/*
+!outputs/json/.gitkeep
+
+outputs/reports/*
+!outputs/reports/.gitkeep
+
+outputs/logs/*
+!outputs/logs/.gitkeep
+
+
+# ==============================================================
+# Final test-set inputs
+# ==============================================================
+
+outputs/test/attribute_probabilities.csv
+outputs/test/lesion_masks/
+outputs/test/task2_predictions/
+
+
+# ==============================================================
+# Generated test-set outputs
+# Keep only the empty-folder placeholder files in Git
+# ==============================================================
+
+outputs/test/json/*
+!outputs/test/json/.gitkeep
+
+outputs/test/reports/*
+!outputs/test/reports/.gitkeep
+
+outputs/test/logs/*
+!outputs/test/logs/.gitkeep
+
+
+# ==============================================================
+# Local backups and generated archives
+# ==============================================================
+
+final_backup/
+submission_backup/
+
+task3_validation_outputs.zip
+task3_validation_backup.zip
+task3_test_outputs.zip
+
+
+# ==============================================================
+# Temporary files
+# ==============================================================
+
+*.tmp
+*.temp
 *.log
-
-# ---- OS / editor junk ----
-.DS_Store
-Thumbs.db
-*.swp
-*.Identifier
+*~
