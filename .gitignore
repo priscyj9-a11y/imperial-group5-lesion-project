@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ---- Python ----
 __pycache__/
 *.pyc
@@ -37,3 +38,17 @@ project_data/
 .DS_Store
 Thumbs.db
 *.swp
+=======
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.zip
+*.Identifier
+*.log
+.DS_Store
+outputs/
+attribute_detection/__pycache__/
+preprocessing/__pycache__/
+>>>>>>> origin/rita-ivana-task2-attribute-detection
